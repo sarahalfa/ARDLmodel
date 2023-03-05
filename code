@@ -1,0 +1,64 @@
+
+library(pdfetch) #for importing data
+library(ARDL)  # for AIC and BIC commands
+library(dynlm) #for dynamic linear model
+library(stargazer) #for exporting regressions
+library(zoo) #transforming data to zoo
+
+
+
+#=====================================WEEK 6 ARDL model
+
+#estimating an ARDL model and seeing how many lags to include
+#Federal reserve as X variable and bond yields as Y variable
+
+#import data using pdfetch
+fred<- pdfetch_FRED(c("DGS10", "DFF"))
+colnames(fred)[1]<- "tb10"
+colnames(fred)[2]<- "FRR"
+
+
+#change to data frame and remove NA data
+data<- data.frame(fred)
+data_1<- na.omit(data)
+
+model1<-dynlm(tb10~FRR, data = data_1)
+summary(model1)
+
+
+#AIC approach
+ardl_aic<-auto_ardl(tb10~ FRR , selection = "AIC", data = data_1, max_order = 5)
+ardl_aic
+#suggests that we need an order of 2 lags for yields and 3 lags for federal reserve rate
+
+#baynesian approach
+ardl_bic<-auto_ardl(tb10~FRR, selection = "BIC", data = data_1, max_order = 5)
+ardl_bic
+#suggests using 2 lags for yields and 1 lag for federal reserve rate 
+
+
+
+#==== run ARDL regressions - convert to zoo first!
+
+data_1.zoo<- zoo(data_1)
+
+#AIC suggested model
+reg1<-dynlm(tb10~L(tb10,1)+ L(tb10,2)+ FRR+  L(FRR,1)+ L(FRR,2)+ L(FRR,3), data = data_1.zoo)
+print(summary(reg1))
+
+
+#BIC suggested model
+reg2<-dynlm(tb10~L(tb10,1)+ L(tb10,2)+ FRR+  L(FRR,1), data = data_1.zoo)
+print(summary(reg2))
+
+
+
+#exporting to doc
+
+getwd()
+setwd("C:/Users/sarah/OneDrive - SOAS University of London/advanced metrics")
+
+stargazer(reg2, type="text", title = "ARDL model (% point estimates)", digits = 3, 
+          dep.var.labels=c("10-year bond yields"), 
+          covariate.labels=c("previous day bond yield", "2-day prior bond yield", 
+                             "federal reserve rate", "previous day federal reserve rate", "constant"), out="reg1")
